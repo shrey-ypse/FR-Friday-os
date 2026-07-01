@@ -1309,6 +1309,15 @@ Please provide a 3-bullet core brief highlighting action items.`;
     );
   }
 
+  const pendingTasksCount = localTasksList.filter(t => !t.completed).length;
+  const completedTasksCount = localTasksList.filter(t => t.completed).length;
+  const totalTasksCount = localTasksList.length;
+  const completionRate = totalTasksCount > 0 ? (completedTasksCount / totalTasksCount) : 0;
+  const strokeDashoffsetValue = 188 - (188 * completionRate);
+
+  const highPriorityCount = localTasksList.filter(t => !t.completed && t.priority === 'high').length;
+  const inProgressCount = localTasksList.filter(t => !t.completed && t.priority !== 'high').length;
+
   return (
     <div style={styles.appContainer}>
       <CommandPalette 
@@ -1496,7 +1505,19 @@ Please provide a 3-bullet core brief highlighting action items.`;
                       <span style={{ color: 'var(--color-text-secondary)', cursor: 'pointer', fontSize: '14px' }}>+</span>
                     </div>
 
-                    {dashboardEvents.length > 0 ? (
+                    {!googleToken ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', flex: 1, textAlign: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '24px', opacity: 0.5 }}>🔒</span>
+                        <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>Google Calendar disconnected</span>
+                        <button 
+                          onClick={() => setActiveTab('settings')} 
+                          className="cyber-btn-primary" 
+                          style={{ padding: '4px 10px', fontSize: '9px', marginTop: '5px' }}
+                        >
+                          Connect Google
+                        </button>
+                      </div>
+                    ) : dashboardEvents.length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto' }}>
                         {dashboardEvents.slice(0, 3).map((event, idx) => {
                           const timeStr = event.start 
@@ -1513,18 +1534,8 @@ Please provide a 3-bullet core brief highlighting action items.`;
                         })}
                       </div>
                     ) : (
-                      /* Placeholder Agenda matching mockup exactly */
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
-                        <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.01)', borderRadius: '6px', borderLeft: '3px solid #0099ff' }}>
-                          <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>10:00 AM</div>
-                          <div style={{ fontSize: '12px', fontWeight: 500, color: '#fff' }}>Design Review</div>
-                          <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>Google Meet</div>
-                        </div>
-                        <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.01)', borderRadius: '6px', borderLeft: '3px solid #8b5cf6' }}>
-                          <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>1:30 PM</div>
-                          <div style={{ fontSize: '12px', fontWeight: 500, color: '#fff' }}>Project Sync</div>
-                          <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>Conference Room B</div>
-                        </div>
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, textAlign: 'center', fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                        No events scheduled today, Boss.
                       </div>
                     )}
                     
@@ -1554,13 +1565,13 @@ Please provide a 3-bullet core brief highlighting action items.`;
                       <svg width="70" height="70" viewBox="0 0 70 70">
                         <circle cx="35" cy="35" r="30" fill="none" stroke="rgba(255,255,255,0.02)" strokeWidth="5" />
                         <circle cx="35" cy="35" r="30" fill="none" stroke="var(--color-blue)" strokeWidth="5"
-                                strokeDasharray="188" strokeDashoffset="62" strokeLinecap="round"
+                                strokeDasharray="188" strokeDashoffset={strokeDashoffsetValue} strokeLinecap="round"
                                 transform="rotate(-90 35 35)" />
                       </svg>
                       <div style={{
                         position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center'
                       }}>
-                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff' }}>6</div>
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff' }}>{pendingTasksCount}</div>
                         <div style={{ fontSize: '8px', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Left</div>
                       </div>
                     </div>
@@ -1572,21 +1583,21 @@ Please provide a 3-bullet core brief highlighting action items.`;
                           <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-red)' }} />
                           High Priority
                         </span>
-                        <span style={{ color: '#fff' }}>3</span>
+                        <span style={{ color: '#fff' }}>{highPriorityCount}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-blue)' }} />
                           In Progress
                         </span>
-                        <span style={{ color: '#fff' }}>2</span>
+                        <span style={{ color: '#fff' }}>{inProgressCount}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-green)' }} />
                           Completed
                         </span>
-                        <span style={{ color: '#fff' }}>1</span>
+                        <span style={{ color: '#fff' }}>{completedTasksCount}</span>
                       </div>
                     </div>
 
@@ -1729,38 +1740,38 @@ Please provide a 3-bullet core brief highlighting action items.`;
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {/* Activity Row 1 */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--color-red)' }} />
+                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: googleToken ? 'var(--color-green)' : 'var(--color-yellow)' }} />
                       <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                         <span style={{ fontSize: '12px', fontWeight: 500 }}>Gmail</span>
                         <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
-                          {dashboardEmails.length > 0 ? `${dashboardEmails.length} unread emails` : '5 new emails'}
+                          {googleToken ? (dashboardEmails.length > 0 ? `${dashboardEmails.length} unread emails` : 'No unread emails') : 'Service disconnected'}
                         </span>
                       </div>
-                      <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>2m ago</span>
+                      <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>{googleToken ? 'Just now' : '--'}</span>
                     </div>
 
                     {/* Activity Row 2 */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--color-blue)' }} />
+                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: googleToken ? 'var(--color-green)' : 'var(--color-yellow)' }} />
                       <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                         <span style={{ fontSize: '12px', fontWeight: 500 }}>Calendar</span>
                         <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
-                          {dashboardEvents.length > 0 ? `Next event synced` : 'Next meeting in 45m'}
+                          {googleToken ? (dashboardEvents.length > 0 ? `Next: ${dashboardEvents[0].summary}` : 'No meetings scheduled') : 'Service disconnected'}
                         </span>
                       </div>
-                      <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>15m ago</span>
+                      <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>{googleToken ? 'Just now' : '--'}</span>
                     </div>
 
                     {/* Activity Row 3 */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--color-green)' }} />
+                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: googleToken ? 'var(--color-green)' : 'var(--color-yellow)' }} />
                       <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                         <span style={{ fontSize: '12px', fontWeight: 500 }}>Sheets</span>
                         <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
-                          {sheetRows.length > 0 ? 'Datasheet logged' : 'Budget logs updated'}
+                          {googleToken ? (sheetRows.length > 0 ? 'Log spreadsheet synced' : 'Log sheet empty') : 'Service disconnected'}
                         </span>
                       </div>
-                      <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>1h ago</span>
+                      <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)' }}>{googleToken ? 'Just now' : '--'}</span>
                     </div>
                   </div>
                 </div>
@@ -1775,18 +1786,24 @@ Please provide a 3-bullet core brief highlighting action items.`;
                   </div>
                   
                   <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', lineHeight: '1.5' }}>
-                    You have a busy day tomorrow. {dashboardEvents.length > 0 ? `${dashboardEvents.length} meetings` : '3 meetings'} scheduled on your agenda.
+                    {googleToken 
+                      ? (dashboardEvents.length > 0 
+                          ? `You have a busy day tomorrow. ${dashboardEvents.length} meetings scheduled on your agenda.` 
+                          : 'Your calendar is clear for tomorrow, Boss. Enjoy the quiet focus time!')
+                      : 'Google Workspace is currently disconnected. Click settings to authorize calendar sync and retrieve AI daily briefings.'}
                   </p>
                   
-                  <button 
-                    onClick={() => { setInputText('Prepare me for tomorrow'); }} 
-                    style={{
-                      background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)',
-                      borderRadius: '6px', padding: '6px', fontSize: '11px', color: '#fff', cursor: 'pointer'
-                    }}
-                  >
-                    Prepare me →
-                  </button>
+                  {googleToken && (
+                    <button 
+                      onClick={() => { setInputText('Prepare me for tomorrow'); }} 
+                      style={{
+                        background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)',
+                        borderRadius: '6px', padding: '6px', fontSize: '11px', color: '#fff', cursor: 'pointer'
+                      }}
+                    >
+                      Prepare me →
+                    </button>
+                  )}
                 </div>
 
                 {/* System Status Card (Human-readable statuses) */}
