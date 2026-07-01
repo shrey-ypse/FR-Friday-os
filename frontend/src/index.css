@@ -1,0 +1,197 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg-deep: #09090b; /* Pure Obsidian */
+  --bg-panel: rgba(15, 15, 18, 0.4);
+  --border-light: rgba(255, 255, 255, 0.03);
+  --border-active: rgba(0, 153, 255, 0.2);
+  
+  --color-blue: #0099ff; /* Electric Blue */
+  --color-green: #10b981;
+  --color-yellow: #f59e0b;
+  --color-red: #ef4444;
+  
+  --color-text-primary: #f4f4f5; /* Zinc 100 */
+  --color-text-secondary: #a1a1aa; /* Zinc 400 */
+  --color-text-tertiary: #52525b; /* Zinc 600 */
+  
+  --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-sans: 'Outfit', system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-deep);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(0, 153, 255, 0.02) 0%, transparent 60%);
+}
+
+/* Glassmorphism Panel */
+.glass-panel {
+  background: var(--bg-panel);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel:hover {
+  border-color: var(--border-active);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* Sidebar Item */
+.sidebar-btn-custom {
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  padding: 10px 14px;
+  font-size: 13px;
+  font-family: var(--font-display);
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+}
+
+.sidebar-btn-custom:hover {
+  color: var(--color-text-primary);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.sidebar-btn-custom.active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.03);
+  font-weight: 600;
+  border-left: 2px solid var(--color-blue);
+  border-radius: 0 8px 8px 0;
+}
+
+/* Clean Table */
+.cyber-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+}
+
+.cyber-table th {
+  text-align: left;
+  padding: 12px 16px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--border-light);
+  background: rgba(255, 255, 255, 0.005);
+}
+
+.cyber-table td {
+  padding: 14px 16px;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.015);
+  color: var(--color-text-primary);
+}
+
+.cyber-table tr {
+  transition: background 0.15s ease;
+}
+
+.cyber-table tr:hover {
+  background: rgba(255, 255, 255, 0.01);
+}
+
+/* Premium Chat Bubbles (ChatGPT/Claude style - timeline based) */
+.chat-bubble-custom {
+  max-width: 100%;
+  padding: 16px 0;
+  font-size: 14px;
+  line-height: 1.6;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat-bubble-custom.user {
+  color: var(--color-text-primary);
+}
+
+.chat-bubble-custom.friday {
+  color: var(--color-text-primary);
+}
+
+/* Inputs */
+.neon-input-custom {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+  font-family: var(--font-sans);
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.neon-input-custom:focus {
+  border-color: var(--color-blue);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Elegant Slate Button */
+.cyber-btn-primary {
+  background: #ffffff;
+  border: none;
+  color: #09090b;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-family: var(--font-display);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cyber-btn-primary:hover {
+  background: #e4e4e7;
+  transform: translateY(-0.5px);
+}
+
+.cyber-btn-primary:active {
+  transform: translateY(0);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 153, 255, 0.15);
+}
