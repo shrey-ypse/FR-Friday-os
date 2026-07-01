@@ -122,6 +122,17 @@ app.post('/api/chat', async (req, res) => {
         role: 'model'
       });
     }
+
+    const isNetworkError = error.message?.toLowerCase().includes('fetch failed') || 
+                           error.message?.toLowerCase().includes('enotfound') ||
+                           error.message?.toLowerCase().includes('econnrefused');
+    
+    if (isNetworkError) {
+      return res.status(500).json({ 
+        error: "Boss, I am unable to reach the Google Gemini servers. Please check your internet connection or switch to the local 'Ollama' provider in Settings to run models offline." 
+      });
+    }
+
     res.status(500).json({ error: `System execution error, Boss: ${error.message}` });
   }
 });
