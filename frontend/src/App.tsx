@@ -315,7 +315,7 @@ export default function App() {
   const [speechSupported, setSpeechSupported] = useState<boolean>(false);
   const [voiceAutoSubmit, setVoiceAutoSubmit] = useState<boolean>(() => {
     const saved = localStorage.getItem('friday_voice_autosubmit');
-    return saved !== null ? saved === 'true' : false;
+    return saved !== null ? saved === 'true' : true;
   });
   const recognitionRef = useRef<any>(null);
 
