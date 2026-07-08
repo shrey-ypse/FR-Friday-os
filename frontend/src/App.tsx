@@ -334,6 +334,14 @@ export default function App() {
     }
   }, [activeTheme]);
 
+  const [voiceLanguage, setVoiceLanguage] = useState<string>(() => {
+    return localStorage.getItem('friday_voice_language') || 'en-US';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('friday_voice_language', voiceLanguage);
+  }, [voiceLanguage]);
+
   useEffect(() => {
     localStorage.setItem('friday_voice_enabled', String(voiceEnabled));
   }, [voiceEnabled]);
@@ -911,7 +919,7 @@ Please provide a 3-bullet core brief highlighting action items.`;
       const rec = new SpeechRecognition();
       rec.continuous = false;
       rec.interimResults = false;
-      rec.lang = 'en-US';
+      rec.lang = voiceLanguage;
 
       rec.onstart = () => {
         setIsListening(true);
@@ -954,7 +962,7 @@ Please provide a 3-bullet core brief highlighting action items.`;
 
       recognitionRef.current = rec;
     }
-  }, [orbState]);
+  }, [orbState, voiceLanguage]);
 
   useEffect(() => {
     toggleListeningRef.current = toggleListening;
@@ -2639,6 +2647,35 @@ Please provide a 3-bullet core brief highlighting action items.`;
                   >
                     {voiceAutoSubmit ? 'ACTIVE • ON' : 'DISABLED • OFF'}
                   </button>
+                </div>
+
+                <div style={styles.settingRow}>
+                  <span>Voice Input Language / Accent:</span>
+                  <select 
+                    value={voiceLanguage}
+                    onChange={e => setVoiceLanguage(e.target.value)}
+                    className="neon-input-custom"
+                    style={{
+                      width: '180px',
+                      fontSize: '11px',
+                      padding: '6px 10px',
+                      backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                      border: '1px solid var(--border-light)',
+                      borderRadius: '4px',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      outline: 'none'
+                    }}
+                  >
+                    <option value="en-US">English (United States) - US</option>
+                    <option value="en-IN">English (India) - IN</option>
+                    <option value="en-GB">English (United Kingdom) - UK</option>
+                    <option value="en-AU">English (Australia) - AU</option>
+                    <option value="en-CA">English (Canada) - CA</option>
+                    <option value="es-ES">Spanish (Spain) - ES</option>
+                    <option value="fr-FR">French (France) - FR</option>
+                    <option value="de-DE">German (Germany) - DE</option>
+                  </select>
                 </div>
               </div>
 
