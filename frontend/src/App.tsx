@@ -318,6 +318,9 @@ export default function App() {
     return saved !== null ? saved === 'true' : true;
   });
   const recognitionRef = useRef<any>(null);
+  const sendMessageRef = useRef<any>(null);
+  const voiceAutoSubmitRef = useRef<any>(null);
+  const toggleListeningRef = useRef<any>(null);
   const [activeTheme, setActiveTheme] = useState<string>(() => {
     return localStorage.getItem('friday_theme') || 'hologram';
   });
@@ -953,12 +956,10 @@ Please provide a 3-bullet core brief highlighting action items.`;
     }
   }, [orbState]);
 
-  const toggleListeningRef = useRef(toggleListening);
   useEffect(() => {
     toggleListeningRef.current = toggleListening;
   }, [toggleListening]);
 
-  const voiceAutoSubmitRef = useRef(voiceAutoSubmit);
   useEffect(() => {
     voiceAutoSubmitRef.current = voiceAutoSubmit;
   }, [voiceAutoSubmit]);
@@ -1242,7 +1243,6 @@ Please provide a 3-bullet core brief highlighting action items.`;
   };
 
   // Keep latest message handler reference in a ref to avoid stale closures
-  const sendMessageRef = useRef(sendMessageToFriday);
   useEffect(() => {
     sendMessageRef.current = sendMessageToFriday;
   });
