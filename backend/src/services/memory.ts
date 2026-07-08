@@ -44,7 +44,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
 /**
  * Read memory cache file
  */
-function loadMemories(): MemoryEntry[] {
+export function loadMemories(): MemoryEntry[] {
   if (!fs.existsSync(MEMORY_FILE)) {
     return [];
   }
@@ -60,7 +60,7 @@ function loadMemories(): MemoryEntry[] {
 /**
  * Save updated memory cache file
  */
-function saveMemories(memories: MemoryEntry[]) {
+export function saveMemories(memories: MemoryEntry[]) {
   fs.writeFileSync(MEMORY_FILE, JSON.stringify(memories, null, 2), 'utf-8');
 }
 
@@ -121,4 +121,17 @@ export async function searchMemory(query: string, limit: number = 3): Promise<st
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map(m => m.text);
+}
+
+/**
+ * Delete a memory record by ID
+ */
+export function deleteMemory(id: string): boolean {
+  const memories = loadMemories();
+  const filtered = memories.filter(m => m.id !== id);
+  if (filtered.length === memories.length) {
+    return false;
+  }
+  saveMemories(filtered);
+  return true;
 }

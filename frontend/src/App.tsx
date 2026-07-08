@@ -180,7 +180,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export default function App() {
   // Navigation & Startup States
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'chat' | 'sheets' | 'settings' | 'automations' | 'calendar' | 'gmail' | 'tasks'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'chat' | 'sheets' | 'settings' | 'automations' | 'calendar' | 'gmail' | 'tasks' | 'memory' | 'files'>('dashboard');
   const [commandPaletteOpen, setCommandPaletteOpen] = useState<boolean>(false);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
   const [initStep, setInitStep] = useState<number>(0);
@@ -318,6 +318,18 @@ export default function App() {
     return saved !== null ? saved === 'true' : true;
   });
   const recognitionRef = useRef<any>(null);
+  const [activeTheme, setActiveTheme] = useState<string>(() => {
+    return localStorage.getItem('friday_theme') || 'hologram';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('friday_theme', activeTheme);
+    const body = document.body;
+    body.className = '';
+    if (activeTheme !== 'hologram') {
+      body.classList.add(`theme-${activeTheme}`);
+    }
+  }, [activeTheme]);
 
   useEffect(() => {
     localStorage.setItem('friday_voice_enabled', String(voiceEnabled));
@@ -342,6 +354,115 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('friday_voice_autosubmit', String(voiceAutoSubmit));
   }, [voiceAutoSubmit]);
+
+  const [memoriesList, setMemoriesList] = useState<{ id: string; text: string; timestamp: string }[]>([]);
+  const [newMemoryText, setNewMemoryText] = useState<string>('');
+  const [isSavingMemory, setIsSavingMemory] = useState<boolean>(false);
+
+  const [workspaceFiles, setWorkspaceFiles] = useState<{ name: string; size: number; isFile: boolean; modifiedAt: string }[]>([]);
+  const [filePreviewContent, setFilePreviewContent] = useState<string | null>(null);
+  const [filePreviewName, setFilePreviewName] = useState<string | null>(null);
+  const [isLoadingFiles, setIsLoadingFiles] = useState<boolean>(false);
+
+  const fetchMemories = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/memories`);
+      const data = await res.json();
+      setMemoriesList(data.memories || []);
+    } catch (e) {
+      console.error('Failed to fetch memories:', e);
+    }
+  };
+
+  const handleAddMemory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMemoryText.trim()) return;
+    setIsSavingMemory(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/memories`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: newMemoryText })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNewMemoryText('');
+        fetchMemories();
+        addLog('success', 'Memory record injected successfully, Boss.');
+      }
+    } catch (e) {
+      console.error('Failed to save memory:', e);
+      addLog('error', 'Failed to save memory record.');
+    } finally {
+      setIsSavingMemory(false);
+    }
+  };
+
+  const handleDeleteMemory = async (id: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/memories/${id}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchMemories();
+        addLog('success', 'Memory record removed.');
+      }
+    } catch (e) {
+      console.error('Failed to delete memory:', e);
+      addLog('error', 'Failed to delete memory record.');
+    }
+  };
+
+  const fetchWorkspaceFiles = async () => {
+    setIsLoadingFiles(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/workspace/files`);
+      const data = await res.json();
+      setWorkspaceFiles(data.files || []);
+    } catch (e) {
+      console.error('Failed to fetch files:', e);
+    } finally {
+      setIsLoadingFiles(false);
+    }
+  };
+
+  const handlePreviewFile = async (name: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/workspace/files/preview?name=${encodeURIComponent(name)}`);
+      const data = await res.json();
+      if (data.success) {
+        setFilePreviewContent(data.content);
+        setFilePreviewName(name);
+      } else {
+        addLog('error', data.error || 'Failed to preview file');
+      }
+    } catch (e) {
+      console.error('Failed to preview file:', e);
+      addLog('error', 'Failed to preview file content.');
+    }
+  };
+
+  const handleDeleteFile = async (name: string) => {
+    if (!window.confirm(`Are you sure you want to delete ${name}, Boss?`)) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/workspace/files?name=${encodeURIComponent(name)}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchWorkspaceFiles();
+        if (filePreviewName === name) {
+          setFilePreviewContent(null);
+          setFilePreviewName(null);
+        }
+        addLog('success', `File ${name} deleted.`);
+      }
+    } catch (e) {
+      console.error('Failed to delete file:', e);
+      addLog('error', 'Failed to delete file.');
+    }
+  };
 
   const [localOllamaModels, setLocalOllamaModels] = useState<string[]>([]);
 
@@ -1329,6 +1450,14 @@ Please provide a 3-bullet core brief highlighting action items.`;
       case 'tasks':
         setActiveTab('tasks');
         break;
+      case 'memory':
+        setActiveTab('memory');
+        fetchMemories();
+        break;
+      case 'files':
+        setActiveTab('files');
+        fetchWorkspaceFiles();
+        break;
       case 'disconnect':
         handleDisconnect();
         break;
@@ -1459,11 +1588,25 @@ Please provide a 3-bullet core brief highlighting action items.`;
               <span style={{ fontSize: '14px' }}>✓</span> Tasks
             </button>
             <button 
-              onClick={() => setActiveTab('automations')} 
+              onClick={() => { setActiveTab('automations'); }} 
               className={`sidebar-btn-custom ${activeTab === 'automations' ? 'active' : ''}`}
               style={{ opacity: 1, cursor: 'pointer' }}
             >
               <span style={{ fontSize: '14px' }}>✨</span> Automations
+            </button>
+            <button 
+              onClick={() => { setActiveTab('memory'); fetchMemories(); }}
+              className={`sidebar-btn-custom ${activeTab === 'memory' ? 'active' : ''}`}
+              style={{ opacity: 1, cursor: 'pointer' }}
+            >
+              <span style={{ fontSize: '14px' }}>🧠</span> Memory Bank
+            </button>
+            <button 
+              onClick={() => { setActiveTab('files'); fetchWorkspaceFiles(); }}
+              className={`sidebar-btn-custom ${activeTab === 'files' ? 'active' : ''}`}
+              style={{ opacity: 1, cursor: 'pointer' }}
+            >
+              <span style={{ fontSize: '14px' }}>📁</span> File Explorer
             </button>
           </div>
 
@@ -2337,6 +2480,31 @@ Please provide a 3-bullet core brief highlighting action items.`;
                   <code style={styles.settingCode}>{llmProvider === 'gemini' ? 'gemini-2.5-flash' : ollamaModel}</code>
                 </div>
                 <div style={styles.settingRow}>
+                  <span>Dashboard Holographic Theme:</span>
+                  <select 
+                    value={activeTheme}
+                    onChange={e => setActiveTheme(e.target.value)}
+                    className="neon-input-custom"
+                    style={{
+                      width: '180px',
+                      fontSize: '11px',
+                      padding: '6px 10px',
+                      backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                      border: '1px solid var(--border-light)',
+                      borderRadius: '4px',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      outline: 'none'
+                    }}
+                  >
+                    <option value="hologram">Hologram Blue (FRIDAY)</option>
+                    <option value="stark">Stark Red (JARVIS)</option>
+                    <option value="matrix">Matrix Green (Terminal)</option>
+                    <option value="cyberpunk">Cyberpunk Purple (Neon)</option>
+                    <option value="obsidian">Obsidian Gold (Stealth)</option>
+                  </select>
+                </div>
+                <div style={styles.settingRow}>
                   <span>Intelligence Model Provider:</span>
                   <select 
                     value={llmProvider}
@@ -2626,6 +2794,212 @@ Please provide a 3-bullet core brief highlighting action items.`;
                     {isSavingJob ? 'SCHEDULING...' : 'SCHEDULE ROUTINE'}
                   </button>
                 </form>
+              </div>
+            </div>
+          )}
+
+          {/* Memory Bank View */}
+          {activeTab === 'memory' && (
+            <div style={styles.settingsPanel}>
+              <h3 style={{ fontFamily: 'var(--font-display)', marginBottom: '30px', fontSize: '18px' }}>🧠 COGNITIVE MEMORY BANK (RAG)</h3>
+              
+              <div className="glass-panel" style={{ ...styles.settingsGroup, marginBottom: '25px' }}>
+                <h4 style={{ marginBottom: '15px', fontSize: '14px' }}>ADD DIRECT CONTEXT MEMORY</h4>
+                <form onSubmit={handleAddMemory} style={{ display: 'flex', gap: '12px' }}>
+                  <input 
+                    type="text"
+                    placeholder="E.g. Shreyas is the lead creator of FRIDAY OS. Prefer node workspaces."
+                    value={newMemoryText}
+                    onChange={e => setNewMemoryText(e.target.value)}
+                    className="neon-input-custom"
+                    style={{ fontSize: '12px', padding: '8px 12px', flex: 1 }}
+                    required
+                  />
+                  <button 
+                    type="submit" 
+                    className="cyber-btn-primary" 
+                    disabled={isSavingMemory}
+                    style={{ padding: '8px 16px', fontSize: '11px' }}
+                  >
+                    {isSavingMemory ? 'SAVING...' : 'INJECT FACT'}
+                  </button>
+                </form>
+              </div>
+
+              <div className="glass-panel" style={styles.settingsGroup}>
+                <h4 style={{ marginBottom: '15px', fontSize: '14px' }}>STORED COGNITIVE FACTS</h4>
+                
+                {memoriesList.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {memoriesList.map(mem => (
+                      <div key={mem.id} style={{
+                        border: '1px solid rgba(255, 255, 255, 0.05)',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.01)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '15px'
+                      }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+                          <span style={{ fontSize: '12px', color: '#fff', lineHeight: '1.4' }}>{mem.text}</span>
+                          <span style={{ fontSize: '9px', color: 'var(--color-text-tertiary)' }}>
+                            Saved: {new Date(mem.timestamp).toLocaleString()}
+                          </span>
+                        </div>
+                        <button 
+                          onClick={() => handleDeleteMemory(mem.id)}
+                          style={{
+                            background: 'none',
+                            border: '1px solid var(--color-red)',
+                            color: 'var(--color-red)',
+                            borderRadius: '4px',
+                            padding: '4px 8px',
+                            fontSize: '10px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          DELETE
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ color: 'var(--color-text-secondary)', fontSize: '12px' }}>
+                    No cognitive facts stored in vector memory, Boss. Add context above or instruct FRIDAY in chat to remember details.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Workspace File Explorer View */}
+          {activeTab === 'files' && (
+            <div style={styles.settingsPanel}>
+              <h3 style={{ fontFamily: 'var(--font-display)', marginBottom: '30px', fontSize: '18px' }}>📁 WORKSPACE FILE EXPLORER</h3>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '20px', height: 'calc(100vh - 200px)' }}>
+                {/* Left Column: Files list */}
+                <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', padding: '24px', overflowY: 'auto' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 600 }}>WORKSPACE DIRECTORY (./workspace)</span>
+                    <button onClick={fetchWorkspaceFiles} className="cyber-btn-primary" style={{ padding: '4px 10px', fontSize: '10px' }} disabled={isLoadingFiles}>
+                      {isLoadingFiles ? 'SCANNING...' : 'SCAN'}
+                    </button>
+                  </div>
+
+                  {workspaceFiles.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {workspaceFiles.map(file => (
+                        <div 
+                          key={file.name}
+                          onClick={() => handlePreviewFile(file.name)}
+                          style={{
+                            padding: '12px',
+                            borderRadius: '8px',
+                            border: filePreviewName === file.name ? '1px solid var(--color-blue)' : '1px solid rgba(255, 255, 255, 0.05)',
+                            backgroundColor: filePreviewName === file.name ? 'rgba(0, 153, 255, 0.05)' : 'rgba(255, 255, 255, 0.01)',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' }}>
+                            <span style={{ fontWeight: 600, fontSize: '12px', color: '#fff', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                              {file.name}
+                            </span>
+                            <span style={{ fontSize: '9px', color: 'var(--color-text-secondary)' }}>
+                              {(file.size / 1024).toFixed(2)} KB • {new Date(file.modifiedAt).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <a 
+                              href={`${API_BASE_URL}/api/workspace/files/download?name=${encodeURIComponent(file.name)}`}
+                              onClick={e => e.stopPropagation()}
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: '9px',
+                                border: '1px solid var(--border-light)',
+                                color: '#fff',
+                                textDecoration: 'none',
+                                borderRadius: '4px',
+                                backgroundColor: 'rgba(255, 255, 255, 0.02)'
+                              }}
+                            >
+                              GET
+                            </a>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleDeleteFile(file.name); }}
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: '9px',
+                                border: '1px solid var(--color-red)',
+                                color: 'var(--color-red)',
+                                background: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              DEL
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, color: 'var(--color-text-secondary)', fontSize: '12px' }}>
+                      No files found inside the workspace sandbox, Boss. Run a terminal command or ask FRIDAY to save code files!
+                    </div>
+                  )}
+                </div>
+
+                {/* Right Column: Code Preview Panel */}
+                <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', padding: '24px', overflowY: 'auto' }}>
+                  {filePreviewContent !== null && filePreviewName !== null ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', paddingBottom: '10px' }}>
+                        <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--color-blue)' }}>{filePreviewName}</span>
+                        <button 
+                          onClick={() => { setFilePreviewContent(null); setFilePreviewName(null); }}
+                          style={{
+                            background: 'none',
+                            border: '1px solid var(--border-light)',
+                            color: '#fff',
+                            borderRadius: '4px',
+                            padding: '3px 8px',
+                            fontSize: '10px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          CLOSE
+                        </button>
+                      </div>
+                      <pre style={{
+                        flex: 1,
+                        backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                        border: '1px solid rgba(255, 255, 255, 0.03)',
+                        borderRadius: '6px',
+                        padding: '15px',
+                        fontSize: '11px',
+                        fontFamily: 'monospace',
+                        color: 'var(--color-green)',
+                        whiteSpace: 'pre-wrap',
+                        overflowX: 'auto',
+                        margin: 0
+                      }}>
+                        {filePreviewContent || '// Empty file'}
+                      </pre>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', flex: 1, color: 'var(--color-text-secondary)', gap: '10px', textAlign: 'center' }}>
+                      <span style={{ fontSize: '28px' }}>📄</span>
+                      <span style={{ fontSize: '12px' }}>Select a file from the workspace list to view its code preview, Boss.</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}

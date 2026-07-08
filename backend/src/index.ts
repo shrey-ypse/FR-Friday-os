@@ -7,6 +7,7 @@ import { chatWithFriday } from './services/gemini';
 import { startScheduler, setGoogleTokenForBackground, getJobs, addOrUpdateJob, deleteJob, executeJob } from './services/scheduler';
 import { chatWithOllama } from './services/ollama';
 import { getTasks, addTask, toggleTask, deleteTask } from './services/tasks';
+import { loadMemories, saveMemory, deleteMemory } from './services/memory';
 
 // Load environment variables from the parent directory
 dotenv.config({ path: path.join(__dirname, '../../.env') });
@@ -336,6 +337,125 @@ app.get('/api/logs', (req, res) => {
   req.on('close', () => {
     logEmitter.off('log', onLog);
   });
+});
+
+/**
+ * 8. Memory Management API Endpoints
+ */
+app.get('/api/memories', (req, res) => {
+  try {
+    const rawMemories = loadMemories();
+    // Return memories but strip the heavy numeric float vector elements to minimize size
+    const sanitized = rawMemories.map(m => ({
+      id: m.id,
+      text: m.text,
+      timestamp: m.timestamp
+    }));
+    res.json({ success: true, memories: sanitized });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/memories', async (req, res) => {
+  const { text } = req.body;
+  if (!text || !text.trim()) {
+    return res.status(400).json({ error: 'Memory content cannot be empty' });
+  }
+  try {
+    const success = await saveMemory(text);
+    res.json({ success });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/memories/:id', (req, res) => {
+  try {
+    const success = deleteMemory(req.params.id);
+    res.json({ success });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * 9. Workspace File Explorer API Endpoints
+ */
+app.get('/api/workspace/files', (req, res) => {
+  const workspacePath = path.resolve(__dirname, '../../../workspace');
+  if (!fs.existsSync(workspacePath)) {
+    fs.mkdirSync(workspacePath, { recursive: true });
+  }
+  try {
+    const fileNames = fs.readdirSync(workspacePath);
+    const files = fileNames.map(name => {
+      const filePath = path.join(workspacePath, name);
+      const stat = fs.statSync(filePath);
+      return {
+        name,
+        size: stat.size,
+        isFile: stat.isFile(),
+        modifiedAt: stat.mtime.toISOString()
+      };
+    }).filter(f => f.isFile); // only files
+    res.json({ success: true, files });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/workspace/files/preview', (req, res) => {
+  const { name } = req.query;
+  if (!name || typeof name !== 'string') {
+    return res.status(400).json({ error: 'File name is required' });
+  }
+  const workspacePath = path.resolve(__dirname, '../../../workspace');
+  const filePath = path.join(workspacePath, path.basename(name)); // prevent path traversal
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+  try {
+    const stats = fs.statSync(filePath);
+    if (stats.size > 1024 * 1024) { // limit previews to 1MB
+      return res.status(400).json({ error: 'File is too large for web preview' });
+    }
+    const content = fs.readFileSync(filePath, 'utf-8');
+    res.json({ success: true, content });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/workspace/files', (req, res) => {
+  const { name } = req.query;
+  if (!name || typeof name !== 'string') {
+    return res.status(400).json({ error: 'File name is required' });
+  }
+  const workspacePath = path.resolve(__dirname, '../../../workspace');
+  const filePath = path.join(workspacePath, path.basename(name));
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+  try {
+    fs.unlinkSync(filePath);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/workspace/files/download', (req, res) => {
+  const { name } = req.query;
+  if (!name || typeof name !== 'string') {
+    return res.status(400).json({ error: 'File name is required' });
+  }
+  const workspacePath = path.resolve(__dirname, '../../../workspace');
+  const filePath = path.join(workspacePath, path.basename(name));
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('File not found');
+  }
+  res.download(filePath);
 });
 
 app.listen(PORT, () => {

@@ -7,6 +7,7 @@
   --border-active: rgba(0, 153, 255, 0.2);
   
   --color-blue: #0099ff; /* Electric Blue */
+  --color-blue-rgb: 0, 153, 255;
   --color-green: #10b981;
   --color-yellow: #f59e0b;
   --color-red: #ef4444;
@@ -17,6 +18,31 @@
   
   --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-sans: 'Outfit', system-ui, sans-serif;
+}
+
+/* Theme Overrides */
+body.theme-stark {
+  --color-blue: #ef4444;
+  --color-blue-rgb: 239, 68, 68;
+  --border-active: rgba(239, 68, 68, 0.2);
+}
+
+body.theme-matrix {
+  --color-blue: #10b981;
+  --color-blue-rgb: 16, 185, 129;
+  --border-active: rgba(16, 185, 129, 0.2);
+}
+
+body.theme-cyberpunk {
+  --color-blue: #a855f7;
+  --color-blue-rgb: 168, 85, 247;
+  --border-active: rgba(168, 85, 247, 0.2);
+}
+
+body.theme-obsidian {
+  --color-blue: #f59e0b;
+  --color-blue-rgb: 245, 158, 11;
+  --border-active: rgba(245, 158, 11, 0.2);
 }
 
 * {
