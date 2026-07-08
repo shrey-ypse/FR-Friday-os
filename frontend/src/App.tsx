@@ -948,12 +948,15 @@ Please provide a 3-bullet core brief highlighting action items.`;
         if (transcript.trim()) {
           try { rec.stop(); } catch (e) {}
           const cleaned = cleanVoiceTranscript(transcript);
-          setInputText(cleaned);
-          addLog('success', `Voice transcribed: "${cleaned}"`);
           
           if (voiceAutoSubmitRef.current) {
-            sendMessageRef.current(cleaned);
+            setInputText('');
+            setActiveTab('chat');
+            if (sendMessageRef.current) {
+              sendMessageRef.current(cleaned);
+            }
           } else {
+            setInputText(cleaned);
             setOrbState('idle');
             addLog('info', 'Voice loaded. Review, edit, or press Send to execute.');
           }
@@ -964,13 +967,8 @@ Please provide a 3-bullet core brief highlighting action items.`;
     }
   }, [orbState, voiceLanguage]);
 
-  useEffect(() => {
-    toggleListeningRef.current = toggleListening;
-  }, [toggleListening]);
-
-  useEffect(() => {
-    voiceAutoSubmitRef.current = voiceAutoSubmit;
-  }, [voiceAutoSubmit]);
+  toggleListeningRef.current = toggleListening;
+  voiceAutoSubmitRef.current = voiceAutoSubmit;
 
   // Global keyboard shortcut listener (Alt + Space / Alt + V)
   useEffect(() => {
@@ -1251,9 +1249,7 @@ Please provide a 3-bullet core brief highlighting action items.`;
   };
 
   // Keep latest message handler reference in a ref to avoid stale closures
-  useEffect(() => {
-    sendMessageRef.current = sendMessageToFriday;
-  });
+  sendMessageRef.current = sendMessageToFriday;
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
