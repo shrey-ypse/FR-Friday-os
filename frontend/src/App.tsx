@@ -2,6 +2,40 @@ import React, { useState, useEffect, useRef } from 'react';
 import { AiOrb } from './components/AiOrb';
 import CommandPalette from './components/CommandPalette';
 
+const commonCorrections: Record<string, string> = {
+  "get status": "git status",
+  "get commit": "git commit",
+  "get push": "git push",
+  "get pull": "git pull",
+  "get add": "git add",
+  "get branch": "git branch",
+  "get checkout": "git checkout",
+  "get log": "git log",
+  "get remote": "git remote",
+  "get diff": "git diff",
+  "npm run the": "npm run dev",
+  "npm run then": "npm run dev",
+  "npm run dynamic": "npm run dev",
+  "npm run visual": "npm run dev",
+  "npm run bill": "npm run build",
+  "npm run bell": "npm run build",
+  "npm run compile": "npm run build",
+  "npx run": "npx",
+  "node run": "npm run",
+  "ts node": "ts-node"
+};
+
+function cleanVoiceTranscript(text: string): string {
+  let cleaned = text.trim();
+  for (const [misheard, corrected] of Object.entries(commonCorrections)) {
+    const regex = new RegExp(`\\b${misheard}\\b`, 'gi');
+    cleaned = cleaned.replace(regex, corrected);
+  }
+  cleaned = cleaned.replace(/\bfriday\b/gi, 'FRIDAY');
+  cleaned = cleaned.replace(/\bjarvis\b/gi, 'JARVIS');
+  return cleaned;
+}
+
 interface Message {
   role: 'user' | 'model';
   content: string;
@@ -279,6 +313,10 @@ export default function App() {
   });
   const [isListening, setIsListening] = useState<boolean>(false);
   const [speechSupported, setSpeechSupported] = useState<boolean>(false);
+  const [voiceAutoSubmit, setVoiceAutoSubmit] = useState<boolean>(() => {
+    const saved = localStorage.getItem('friday_voice_autosubmit');
+    return saved !== null ? saved === 'true' : false;
+  });
   const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
@@ -300,6 +338,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('friday_ollama_model', ollamaModel);
   }, [ollamaModel]);
+
+  useEffect(() => {
+    localStorage.setItem('friday_voice_autosubmit', String(voiceAutoSubmit));
+  }, [voiceAutoSubmit]);
 
   const [localOllamaModels, setLocalOllamaModels] = useState<string[]>([]);
 
@@ -773,21 +815,32 @@ Please provide a 3-bullet core brief highlighting action items.`;
         const transcript = event.results[0][0].transcript;
         if (transcript.trim()) {
           try { rec.stop(); } catch (e) {}
-          setInputText(transcript);
-          addLog('success', `Voice transcribed: "${transcript}"`);
-          sendMessageRef.current(transcript);
+          const cleaned = cleanVoiceTranscript(transcript);
+          setInputText(cleaned);
+          addLog('success', `Voice transcribed: "${cleaned}"`);
+          
+          if (voiceAutoSubmitRef.current) {
+            sendMessageRef.current(cleaned);
+          } else {
+            setOrbState('idle');
+            addLog('info', 'Voice loaded. Review, edit, or press Send to execute.');
+          }
         }
       };
 
       recognitionRef.current = rec;
     }
-  }, [orbState]); // Add orbState dependency to prevent stale closures in onresult
+  }, [orbState]);
 
-  // Keep latest toggleListening reference to avoid stale closures in window listener
   const toggleListeningRef = useRef(toggleListening);
   useEffect(() => {
     toggleListeningRef.current = toggleListening;
   }, [toggleListening]);
+
+  const voiceAutoSubmitRef = useRef(voiceAutoSubmit);
+  useEffect(() => {
+    voiceAutoSubmitRef.current = voiceAutoSubmit;
+  }, [voiceAutoSubmit]);
 
   // Global keyboard shortcut listener (Alt + Space / Alt + V)
   useEffect(() => {
@@ -2397,6 +2450,26 @@ Please provide a 3-bullet core brief highlighting action items.`;
                     }}
                   >
                     {voiceEnabled ? 'ACTIVE • ON' : 'DISABLED • OFF'}
+                  </button>
+                </div>
+
+                <div style={styles.settingRow}>
+                  <span>Voice Auto-Submit (Auto-send voice transcriptions):</span>
+                  <button 
+                    onClick={() => setVoiceAutoSubmit(!voiceAutoSubmit)}
+                    className="cyber-btn-primary"
+                    style={{
+                      padding: '6px 14px',
+                      fontSize: '11px',
+                      border: `1px solid ${voiceAutoSubmit ? 'var(--color-blue)' : 'var(--border-light)'}`,
+                      color: voiceAutoSubmit ? 'var(--color-blue)' : 'var(--color-text-secondary)',
+                      background: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    {voiceAutoSubmit ? 'ACTIVE • ON' : 'DISABLED • OFF'}
                   </button>
                 </div>
               </div>
