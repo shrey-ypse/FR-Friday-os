@@ -308,7 +308,8 @@ export async function chatWithFriday(
   message: string,
   history: any[] = [],
   googleAccessToken?: string,
-  mode: 'workspace' | 'generic' = 'workspace'
+  mode: 'workspace' | 'generic' = 'workspace',
+  contextPrompt?: string
 ) {
   // Inject the current timestamp dynamically to maintain relative time consistency
   const currentTimestamp = new Date();
@@ -323,6 +324,8 @@ export async function chatWithFriday(
       ? "You have active tools enabled to query and modify the user's Google Workspace."
       : "Workspace tools are disabled for this session. Do not attempt to use function declarations. Instruct the user to switch to Workspace mode or connect Google Workspace if they try to trigger calendars, sheets, or emails."
   }
+
+${contextPrompt ? `[ACTIVE CONTEXT ENGINE DATA]\n${contextPrompt}` : ''}
   `;
 
   const keys = getApiKeys();

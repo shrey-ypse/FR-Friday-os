@@ -8,6 +8,7 @@ import { startScheduler, setGoogleTokenForBackground, getJobs, addOrUpdateJob, d
 import { chatWithOllama } from './services/ollama';
 import { getTasks, addTask, toggleTask, deleteTask } from './services/tasks';
 import { loadMemories, saveMemory, deleteMemory } from './services/memory';
+import { loadDigitalState, saveDigitalState, generateContextGraph, getContextBudgetPrompt } from './services/contextEngine';
 
 // Load environment variables from the parent directory
 dotenv.config({ path: path.join(__dirname, '../../.env') });
@@ -93,23 +94,31 @@ app.post('/api/chat', async (req, res) => {
       setGoogleTokenForBackground(googleToken);
     }
     
-    let aiResponse;
+    // Retrieve ranked context and trace from the Context Engine
+    const { contextPrompt, trustTrace } = await getContextBudgetPrompt(message);
+    
+    let aiResponse: any;
     if (provider === 'ollama') {
       const ollamaModelName = model || 'llama3';
-      const systemPrompt = `You are FRIDAY, a calm, professional, and highly intelligent personal AI operating system inspired by Iron Man's assistant.
+      const baseSystemPrompt = `You are FRIDAY, a calm, professional, and highly intelligent personal AI operating system inspired by Iron Man's assistant.
 - Address the user respectfully as "Boss" or "Sir" (e.g., "Yes, Boss", "Online and ready, Sir").
 - Be concise, efficient, and direct. Eliminate conversational filler, pleasantries, and unnecessary intros/outros.`;
+      const systemPrompt = `${baseSystemPrompt}\n\n[ACTIVE CONTEXT ENGINE DATA]\n${contextPrompt}`;
       aiResponse = await chatWithOllama(ollamaModelName, message, history || [], systemPrompt);
     } else {
-      aiResponse = await chatWithFriday(message, history || [], googleToken, mode || 'workspace');
+      aiResponse = await chatWithFriday(message, history || [], googleToken, mode || 'workspace', contextPrompt);
     }
     
     // Safety guard: ensure the content returned is a non-empty string
     if (!aiResponse || !aiResponse.content || !aiResponse.content.trim()) {
+      aiResponse = aiResponse || {};
       aiResponse.content = "System alert: I am here, Boss, but the core processing system returned a blank response. Let me know if I should retry.";
     }
     
-    res.json(aiResponse);
+    res.json({
+      ...aiResponse,
+      trustTrace
+    });
   } catch (error: any) {
     console.error('Chat API Error:', error.message);
     const isRateLimit = error.message?.toLowerCase().includes('429') || 
@@ -456,6 +465,36 @@ app.get('/api/workspace/files/download', (req, res) => {
     return res.status(404).send('File not found');
   }
   res.download(filePath);
+});
+
+/**
+ * 10. Context Engine Endpoints
+ */
+app.get('/api/context/state', (req, res) => {
+  try {
+    const state = loadDigitalState();
+    res.json({ success: true, state });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/context/state', (req, res) => {
+  try {
+    saveDigitalState(req.body);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/context/graph', (req, res) => {
+  try {
+    const graph = generateContextGraph();
+    res.json({ success: true, graph });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.listen(PORT, () => {

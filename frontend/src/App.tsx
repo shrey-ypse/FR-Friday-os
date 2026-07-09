@@ -36,11 +36,46 @@ function cleanVoiceTranscript(text: string): string {
   return cleaned;
 }
 
+interface TrustTraceItem {
+  source: string;
+  type: 'state' | 'memory' | 'file' | 'gmail' | 'calendar';
+  weight: number;
+}
+
 interface Message {
   role: 'user' | 'model';
   content: string;
   mode?: 'generic' | 'workspace';
   isError?: boolean;
+  trustTrace?: TrustTraceItem[];
+}
+
+interface DigitalState {
+  currentFocus: string;
+  mood: 'focused' | 'calm' | 'interrupted';
+  interruptions: 'low' | 'medium' | 'high';
+  energy: 'high' | 'medium' | 'low';
+  pendingDecisions: string[];
+  blockedTasks: string[];
+  currentGoal: string;
+  progressPercentage: number;
+}
+
+interface GraphNode {
+  id: string;
+  label: string;
+  type: 'user' | 'project' | 'file' | 'memory' | 'tool' | 'email' | 'event';
+}
+
+interface GraphLink {
+  source: string;
+  target: string;
+  relationship: string;
+}
+
+interface ContextGraph {
+  nodes: GraphNode[];
+  links: GraphLink[];
 }
 
 interface LogEntry {
@@ -369,6 +404,59 @@ export default function App() {
   const [memoriesList, setMemoriesList] = useState<{ id: string; text: string; timestamp: string }[]>([]);
   const [newMemoryText, setNewMemoryText] = useState<string>('');
   const [isSavingMemory, setIsSavingMemory] = useState<boolean>(false);
+
+  const [digitalState, setDigitalState] = useState<DigitalState | null>(null);
+  const [isSavingState, setIsSavingState] = useState<boolean>(false);
+  const [contextGraph, setContextGraph] = useState<ContextGraph | null>(null);
+  const [isLoadingGraph, setIsLoadingGraph] = useState<boolean>(false);
+
+  const fetchDigitalState = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/context/state`);
+      const data = await res.json();
+      if (data.success) {
+        setDigitalState(data.state);
+      }
+    } catch (e) {
+      console.error('Failed to fetch digital state:', e);
+    }
+  };
+
+  const handleSaveDigitalState = async (updatedState: DigitalState) => {
+    setIsSavingState(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/context/state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedState)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDigitalState(updatedState);
+        addLog('success', 'User Digital State synchronized, Boss.');
+      }
+    } catch (e) {
+      console.error('Failed to save digital state:', e);
+      addLog('error', 'Failed to save digital state.');
+    } finally {
+      setIsSavingState(false);
+    }
+  };
+
+  const fetchContextGraph = async () => {
+    setIsLoadingGraph(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/context/graph`);
+      const data = await res.json();
+      if (data.success) {
+        setContextGraph(data.graph);
+      }
+    } catch (e) {
+      console.error('Failed to fetch context graph:', e);
+    } finally {
+      setIsLoadingGraph(false);
+    }
+  };
 
   const [workspaceFiles, setWorkspaceFiles] = useState<{ name: string; size: number; isFile: boolean; modifiedAt: string }[]>([]);
   const [filePreviewContent, setFilePreviewContent] = useState<string | null>(null);
@@ -1207,7 +1295,7 @@ Please provide a 3-bullet core brief highlighting action items.`;
       const data = await response.json();
       const finalContent = data.content?.trim() || "I am online, Boss, but the connection returned an empty response. Let me know if I should retry the query.";
 
-      setMessages(prev => [...prev, { role: 'model', content: finalContent, mode: chatMode }]);
+      setMessages(prev => [...prev, { role: 'model', content: finalContent, mode: chatMode, trustTrace: data.trustTrace }]);
       setOrbState('completed');
       addLog('success', 'Instruction executed.');
       speakResponse(finalContent);
@@ -1384,6 +1472,11 @@ Please provide a 3-bullet core brief highlighting action items.`;
     if (activeTab === 'dashboard' && googleToken) {
       fetchDashboardData();
     }
+    if (activeTab === 'memory') {
+      fetchMemories();
+      fetchDigitalState();
+      fetchContextGraph();
+    }
   }, [activeTab]);
 
   // Persist threads to localstorage
@@ -1457,6 +1550,8 @@ Please provide a 3-bullet core brief highlighting action items.`;
       case 'memory':
         setActiveTab('memory');
         fetchMemories();
+        fetchDigitalState();
+        fetchContextGraph();
         break;
       case 'files':
         setActiveTab('files');
@@ -1599,11 +1694,11 @@ Please provide a 3-bullet core brief highlighting action items.`;
               <span style={{ fontSize: '14px' }}>✨</span> Automations
             </button>
             <button 
-              onClick={() => { setActiveTab('memory'); fetchMemories(); }}
+              onClick={() => { setActiveTab('memory'); fetchMemories(); fetchDigitalState(); fetchContextGraph(); }}
               className={`sidebar-btn-custom ${activeTab === 'memory' ? 'active' : ''}`}
               style={{ opacity: 1, cursor: 'pointer' }}
             >
-              <span style={{ fontSize: '14px' }}>🧠</span> Memory Bank
+              <span style={{ fontSize: '14px' }}>🧠</span> Context Engine
             </button>
             <button 
               onClick={() => { setActiveTab('files'); fetchWorkspaceFiles(); }}
@@ -2247,6 +2342,35 @@ Please provide a 3-bullet core brief highlighting action items.`;
                           <div style={{ marginTop: '4px' }}>
                             <MarkdownRenderer content={msg.content} />
                           </div>
+
+                          {msg.role === 'model' && msg.trustTrace && msg.trustTrace.length > 0 && (
+                            <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed rgba(255,255,255,0.03)' }}>
+                              <details style={{ cursor: 'pointer' }}>
+                                <summary style={{ fontSize: '9px', fontWeight: 600, color: 'var(--color-blue)', letterSpacing: '0.5px', outline: 'none' }}>
+                                  🛡️ EXPLAINABLE AI (CONTEXT TRUST TRACE)
+                                </summary>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
+                                  {msg.trustTrace.map((trace, tIdx) => (
+                                    <div key={tIdx} style={{
+                                      fontSize: '9px',
+                                      padding: '3px 8px',
+                                      border: '1px solid rgba(255,255,255,0.06)',
+                                      borderRadius: '4px',
+                                      backgroundColor: 'rgba(255,255,255,0.01)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '5px'
+                                    }}>
+                                      <span style={{ color: trace.type === 'state' ? 'var(--color-green)' : trace.type === 'memory' ? 'var(--color-blue)' : '#fff' }}>
+                                        {trace.type === 'state' ? '👤' : trace.type === 'memory' ? '🧠' : '📄'} {trace.source}
+                                      </span>
+                                      <span style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>{trace.weight}%</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </details>
+                            </div>
+                          )}
                         </div>
                       );
                     })
@@ -2831,78 +2955,271 @@ Please provide a 3-bullet core brief highlighting action items.`;
             </div>
           )}
 
-          {/* Memory Bank View */}
+          {/* Context Engine View */}
           {activeTab === 'memory' && (
             <div style={styles.settingsPanel}>
-              <h3 style={{ fontFamily: 'var(--font-display)', marginBottom: '30px', fontSize: '18px' }}>🧠 COGNITIVE MEMORY BANK (RAG)</h3>
+              <h3 style={{ fontFamily: 'var(--font-display)', marginBottom: '30px', fontSize: '18px' }}>🧠 COGNITIVE CONTEXT ENGINE</h3>
               
-              <div className="glass-panel" style={{ ...styles.settingsGroup, marginBottom: '25px' }}>
-                <h4 style={{ marginBottom: '15px', fontSize: '14px' }}>ADD DIRECT CONTEXT MEMORY</h4>
-                <form onSubmit={handleAddMemory} style={{ display: 'flex', gap: '12px' }}>
-                  <input 
-                    type="text"
-                    placeholder="E.g. Shreyas is the lead creator of FRIDAY OS. Prefer node workspaces."
-                    value={newMemoryText}
-                    onChange={e => setNewMemoryText(e.target.value)}
-                    className="neon-input-custom"
-                    style={{ fontSize: '12px', padding: '8px 12px', flex: 1 }}
-                    required
-                  />
-                  <button 
-                    type="submit" 
-                    className="cyber-btn-primary" 
-                    disabled={isSavingMemory}
-                    style={{ padding: '8px 16px', fontSize: '11px' }}
-                  >
-                    {isSavingMemory ? 'SAVING...' : 'INJECT FACT'}
-                  </button>
-                </form>
-              </div>
-
-              <div className="glass-panel" style={styles.settingsGroup}>
-                <h4 style={{ marginBottom: '15px', fontSize: '14px' }}>STORED COGNITIVE FACTS</h4>
-                
-                {memoriesList.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {memoriesList.map(mem => (
-                      <div key={mem.id} style={{
-                        border: '1px solid rgba(255, 255, 255, 0.05)',
-                        borderRadius: '8px',
-                        padding: '12px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.01)',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: '15px'
-                      }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
-                          <span style={{ fontSize: '12px', color: '#fff', lineHeight: '1.4' }}>{mem.text}</span>
-                          <span style={{ fontSize: '9px', color: 'var(--color-text-tertiary)' }}>
-                            Saved: {new Date(mem.timestamp).toLocaleString()}
-                          </span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', height: 'calc(100vh - 200px)' }}>
+                {/* Left Column: Digital State HUD & Context Budget */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}>
+                  
+                  {/* Digital State HUD */}
+                  <div className="glass-panel" style={styles.settingsGroup}>
+                    <h4 style={{ marginBottom: '15px', fontSize: '14px', color: 'var(--color-blue)' }}>USER DIGITAL STATE HUD</h4>
+                    {digitalState ? (
+                      <form onSubmit={(e) => {
+                        e.preventDefault();
+                        handleSaveDigitalState(digitalState);
+                      }} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>ACTIVE GOAL:</span>
+                          <input 
+                            type="text" 
+                            value={digitalState.currentGoal} 
+                            onChange={e => setDigitalState({ ...digitalState, currentGoal: e.target.value })}
+                            className="neon-input-custom" 
+                            style={{ fontSize: '11px', padding: '6px 10px' }}
+                            required
+                          />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>CURRENT FOCUS:</span>
+                          <input 
+                            type="text" 
+                            value={digitalState.currentFocus} 
+                            onChange={e => setDigitalState({ ...digitalState, currentFocus: e.target.value })}
+                            className="neon-input-custom" 
+                            style={{ fontSize: '11px', padding: '6px 10px' }}
+                            required
+                          />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>MOOD:</span>
+                            <select 
+                              value={digitalState.mood}
+                              onChange={e => setDigitalState({ ...digitalState, mood: e.target.value as any })}
+                              className="neon-input-custom"
+                              style={{ fontSize: '11px', padding: '6px 10px', color: '#fff', backgroundColor: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-light)', borderRadius: '4px' }}
+                            >
+                              <option value="focused">Focused</option>
+                              <option value="calm">Calm</option>
+                              <option value="interrupted">Interrupted</option>
+                            </select>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>ENERGY:</span>
+                            <select 
+                              value={digitalState.energy}
+                              onChange={e => setDigitalState({ ...digitalState, energy: e.target.value as any })}
+                              className="neon-input-custom"
+                              style={{ fontSize: '11px', padding: '6px 10px', color: '#fff', backgroundColor: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-light)', borderRadius: '4px' }}
+                            >
+                              <option value="high">High</option>
+                              <option value="medium">Medium</option>
+                              <option value="low">Low</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>PENDING DECISIONS (Comma separated):</span>
+                          <input 
+                            type="text" 
+                            value={digitalState.pendingDecisions.join(', ')} 
+                            onChange={e => setDigitalState({ ...digitalState, pendingDecisions: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                            className="neon-input-custom" 
+                            style={{ fontSize: '11px', padding: '6px 10px' }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>BLOCKED TASKS (Comma separated):</span>
+                          <input 
+                            type="text" 
+                            value={digitalState.blockedTasks.join(', ')} 
+                            onChange={e => setDigitalState({ ...digitalState, blockedTasks: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                            className="neon-input-custom" 
+                            style={{ fontSize: '11px', padding: '6px 10px' }}
+                          />
                         </div>
                         <button 
-                          onClick={() => handleDeleteMemory(mem.id)}
-                          style={{
-                            background: 'none',
-                            border: '1px solid var(--color-red)',
-                            color: 'var(--color-red)',
-                            borderRadius: '4px',
-                            padding: '4px 8px',
-                            fontSize: '10px',
-                            cursor: 'pointer'
-                          }}
+                          type="submit" 
+                          className="cyber-btn-primary" 
+                          disabled={isSavingState}
+                          style={{ padding: '8px 16px', fontSize: '11px', alignSelf: 'flex-start', marginTop: '10px' }}
                         >
-                          DELETE
+                          {isSavingState ? 'SAVING...' : 'SYNC DIGITAL STATE'}
                         </button>
-                      </div>
-                    ))}
+                      </form>
+                    ) : (
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>Loading state variables...</div>
+                    )}
                   </div>
-                ) : (
-                  <p style={{ color: 'var(--color-text-secondary)', fontSize: '12px' }}>
-                    No cognitive facts stored in vector memory, Boss. Add context above or instruct FRIDAY in chat to remember details.
-                  </p>
-                )}
+
+                  {/* Context Budget Tracker */}
+                  <div className="glass-panel" style={styles.settingsGroup}>
+                    <h4 style={{ marginBottom: '15px', fontSize: '14px', color: 'var(--color-blue)' }}>CONTEXT BUDGET TRACKER</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px' }}>
+                        <span>User Digital State</span>
+                        <span style={{ color: 'var(--color-green)' }}>100% Allocated (Max Weight)</span>
+                      </div>
+                      <div style={{ width: '100%', height: '4px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '2px' }}>
+                        <div style={{ width: '100%', height: '100%', backgroundColor: 'var(--color-green)', borderRadius: '2px' }} />
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', marginTop: '5px' }}>
+                        <span>Long-Term Memory Retrieval</span>
+                        <span style={{ color: 'var(--color-blue)' }}>Decaying Scale (Calculated)</span>
+                      </div>
+                      <div style={{ width: '100%', height: '4px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '2px' }}>
+                        <div style={{ width: '80%', height: '100%', backgroundColor: 'var(--color-blue)', borderRadius: '2px' }} />
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', marginTop: '5px' }}>
+                        <span>Local Workspace Files</span>
+                        <span style={{ color: 'var(--color-text-secondary)' }}>75% Priority Cap</span>
+                      </div>
+                      <div style={{ width: '100%', height: '4px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '2px' }}>
+                        <div style={{ width: '75%', height: '100%', backgroundColor: 'var(--color-text-secondary)', borderRadius: '2px' }} />
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Right Column: Context Graph & Stored Memories */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}>
+                  
+                  {/* Holographic Context Graph */}
+                  <div className="glass-panel" style={styles.settingsGroup}>
+                    <h4 style={{ marginBottom: '15px', fontSize: '14px', color: 'var(--color-blue)' }}>INTERACTIVE CONTEXT GRAPH</h4>
+                    {contextGraph ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                          <div className="glass-panel" style={{ border: '1px solid var(--color-blue)', padding: '6px 15px', borderRadius: '20px', fontSize: '11px', color: '#fff', backgroundColor: 'rgba(0, 153, 255, 0.1)' }}>
+                            👑 Shreyas (Boss)
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', margin: '-5px 0' }}>
+                          <div style={{ width: '2px', height: '12px', backgroundColor: 'var(--color-blue)', opacity: 0.3 }} />
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                          <div className="glass-panel" style={{ border: '1px solid var(--color-green)', padding: '6px 15px', borderRadius: '4px', fontSize: '11px', color: '#fff', backgroundColor: 'rgba(0, 255, 100, 0.05)' }}>
+                            🚀 Goal: {digitalState?.currentGoal || 'FRIDAY OS'}
+                          </div>
+                        </div>
+                        <div style={{ borderTop: '1px dashed rgba(255, 255, 255, 0.05)', margin: '10px 0' }} />
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                          <div>
+                            <span style={{ fontSize: '9px', color: 'var(--color-text-secondary)', letterSpacing: '0.5px' }}>WORKSPACE FILE NODES:</span>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                              {contextGraph.nodes.filter(n => n.type === 'file').slice(0, 6).map(n => (
+                                <div key={n.id} style={{ fontSize: '9px', padding: '3px 8px', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.02)', color: '#fff' }}>
+                                  📄 {n.label.replace('📁 ', '')}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '9px', color: 'var(--color-text-secondary)', letterSpacing: '0.5px' }}>MEMORY RETRIEVAL NODES:</span>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                              {contextGraph.nodes.filter(n => n.type === 'memory').slice(0, 6).map(n => (
+                                <div key={n.id} style={{ fontSize: '9px', padding: '3px 8px', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.02)', color: '#fff' }}>
+                                  🧠 {n.label.replace('🧠 ', '')}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : isLoadingGraph ? (
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>Compiling relationship links...</div>
+                    ) : (
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>No context graph data compiled.</div>
+                    )}
+                  </div>
+
+                  {/* Stored Memories (Decaying) */}
+                  <div className="glass-panel" style={styles.settingsGroup}>
+                    <h4 style={{ marginBottom: '15px', fontSize: '14px', color: 'var(--color-blue)' }}>COGNITIVE FACTS (DECAY RETENTION)</h4>
+                    
+                    {/* Add Memory Inline */}
+                    <form onSubmit={handleAddMemory} style={{ display: 'flex', gap: '10px', marginBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '15px' }}>
+                      <input 
+                        type="text"
+                        placeholder="Add dynamic fact user preference..."
+                        value={newMemoryText}
+                        onChange={e => setNewMemoryText(e.target.value)}
+                        className="neon-input-custom"
+                        style={{ fontSize: '11px', padding: '6px 10px', flex: 1 }}
+                        required
+                      />
+                      <button 
+                        type="submit" 
+                        className="cyber-btn-primary" 
+                        disabled={isSavingMemory}
+                        style={{ padding: '6px 12px', fontSize: '10px' }}
+                      >
+                        {isSavingMemory ? 'SAVING...' : 'INJECT'}
+                      </button>
+                    </form>
+
+                    {memoriesList.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {memoriesList.slice(0, 10).map(mem => {
+                          const diffMs = new Date().getTime() - new Date(mem.timestamp).getTime();
+                          const diffMin = Math.max(0, diffMs / (1000 * 60));
+                          const lambda = 0.00005; // half-life 10 days
+                          const score = Math.round(100 * Math.exp(-lambda * diffMin));
+                          return (
+                            <div key={mem.id} style={{
+                              border: '1px solid rgba(255, 255, 255, 0.05)',
+                              borderRadius: '6px',
+                              padding: '10px',
+                              backgroundColor: 'rgba(255, 255, 255, 0.01)',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              gap: '10px'
+                            }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1 }}>
+                                <span style={{ fontSize: '11px', color: '#fff', lineHeight: '1.3' }}>{mem.text}</span>
+                                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '2px' }}>
+                                  <span style={{ fontSize: '8px', color: score > 75 ? 'var(--color-green)' : 'var(--color-text-secondary)' }}>
+                                    Retention: {score}%
+                                  </span>
+                                  <span style={{ fontSize: '8px', color: 'var(--color-text-tertiary)' }}>
+                                    {new Date(mem.timestamp).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              </div>
+                              <button 
+                                onClick={() => handleDeleteMemory(mem.id)}
+                                style={{
+                                  background: 'none',
+                                  border: '1px solid var(--color-red)',
+                                  color: 'var(--color-red)',
+                                  borderRadius: '4px',
+                                  padding: '3px 6px',
+                                  fontSize: '9px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                DEL
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p style={{ color: 'var(--color-text-secondary)', fontSize: '11px' }}>
+                        No preferences or context facts stored.
+                      </p>
+                    )}
+                  </div>
+
+                </div>
               </div>
             </div>
           )}
